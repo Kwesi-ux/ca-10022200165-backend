@@ -4,12 +4,13 @@ import { jsonWithCors } from '@/lib/response';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const data = await request.json();
     const item = await prisma.wishlistItem.update({
-      where: { id: params.id },
+      where: { id },
       data,
     });
     return jsonWithCors(request, item);
@@ -20,11 +21,12 @@ export async function PUT(
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     await prisma.wishlistItem.delete({
-      where: { id: params.id },
+      where: { id },
     });
     return new NextResponse(null, { status: 204 });
   } catch (error) {
