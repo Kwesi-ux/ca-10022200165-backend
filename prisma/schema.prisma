@@ -1,0 +1,287 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ================= USERS =================
+model User {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  username      String
+  email         String    @unique
+  password_hash String
+  created_at    DateTime  @default(now())
+  last_login    DateTime?
+  is_active     Boolean   @default(true)
+
+  // Relations
+  administrators  Administrator?
+  customers       Customer?
+  sellers         Seller?
+  addresses       Address[]
+  carts           Cart[]
+  orders          Order[]
+  transactionLogs TransactionLog[]
+  activities      UserActivity[]
+  wishlists       Wishlist[]
+  productViews    ProductView[]
+}
+
+// ================= ADMINISTRATORS =================
+model Administrator {
+  id                  String  @id @default(auto()) @map("_id") @db.ObjectId
+  admin_level         Int
+  can_manage_products Boolean
+  can_manage_users    Boolean
+  can_manage_orders   Boolean
+  can_manage_refunds  Boolean
+
+  user_id String @unique @db.ObjectId
+  user    User   @relation(fields: [user_id], references: [id])
+
+  refunds Refund[]
+}
+
+// ================= CUSTOMERS =================
+model Customer {
+  id               String  @id @default(auto()) @map("_id") @db.ObjectId
+  loyalty_points   Int     @default(0)
+  marketing_opt_in Boolean @default(false)
+
+  user_id String @unique @db.ObjectId
+  user    User   @relation(fields: [user_id], references: [id])
+}
+
+// ================= SELLERS =================
+model Seller {
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  store_name        String
+  store_description String?
+  rating            Int?
+  is_verified       Boolean @default(false)
+
+  user_id String @unique @db.ObjectId
+  user    User   @relation(fields: [user_id], references: [id])
+
+  products Product[]
+}
+
+// ================= ADDRESSES =================
+model Address {
+  id            String  @id @default(auto()) @map("_id") @db.ObjectId
+  address_line1 String
+  address_line2 String?
+  city          String
+  state         String?
+  postal_code   String
+  country       String
+  address_type  String
+  phone         String?
+  is_default    Boolean @default(false)
+
+  user_id String @db.ObjectId
+  user    User   @relation(fields: [user_id], references: [id])
+
+  shippingOrders Order[] @relation("ShippingAddress")
+  billingOrders  Order[] @relation("BillingAddress")
+}
+
+// ================= CATEGORIES =================
+model Category {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String    @unique
+  description String?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+  
+  // Relations
+  products    Product[]
+}
+
+// ================= PRODUCTS =================
+model Product {
+  id             String  @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  description    String?
+  price          Float   // Changed from Decimal to Float
+  in_stock       Boolean @default(true)
+  stock_quantity Int
+  image_url      String?
+  
+  category_id String      @db.ObjectId
+  category    Category    @relation(fields: [category_id], references: [id])
+  
+  seller_id   String      @db.ObjectId
+  seller      Seller      @relation(fields: [seller_id], references: [id])
+
+  orderItems   OrderItem[]
+  cartItems    CartItem[]
+  wishlists    WishlistItem[]
+  productViews ProductView[]
+}
+
+// ================= CARTS =================
+model Cart {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  session_id String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  is_active  Boolean  @default(true)
+
+  user_id String @db.ObjectId
+  user    User   @relation(fields: [user_id], references: [id])
+
+  cartItems CartItem[]
+}
+
+// ================= CART ITEMS =================
+model CartItem {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  quantity Int
+  added_at DateTime @default(now())
+
+  cart_id String @db.ObjectId
+  cart    Cart   @relation(fields: [cart_id], references: [id])
+
+  product_id String  @db.ObjectId
+  product    Product @relation(fields: [product_id], references: [id])
+}
+
+// ================= ORDERS =================
+model Order {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  order_date   DateTime  @default(now())
+  total_amount Float     // Changed from Decimal to Float
+  currency     String
+  order_status String
+  delivered_at DateTime?
+  cancelled_at DateTime?
+
+  customer_id String @db.ObjectId
+  customer    User   @relation(fields: [customer_id], references: [id])
+
+  shipping_address_id String  @db.ObjectId
+  shippingAddress     Address @relation("ShippingAddress", fields: [shipping_address_id], references: [id])
+
+  billing_address_id String  @db.ObjectId
+  billingAddress     Address @relation("BillingAddress", fields: [billing_address_id], references: [id])
+
+  payments        Payment[]
+  refunds         Refund[]
+  orderItems      OrderItem[]
+  transactionLogs TransactionLog[]
+}
+
+// ================= ORDER ITEMS =================
+model OrderItem {
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
+  quantity    Int
+  unit_price  Float  // Changed from Decimal to Float
+  total_price Float  // Changed from Decimal to Float
+
+  order_id String @db.ObjectId
+  order    Order  @relation(fields: [order_id], references: [id])
+
+  product_id String  @db.ObjectId
+  product    Product @relation(fields: [product_id], references: [id])
+}
+
+// ================= PAYMENTS =================
+model Payment {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  payment_method String
+  payment_status String
+  paid_at        DateTime?
+  amount         Float     // Changed from Decimal to Float
+
+  order_id String @db.ObjectId
+  order    Order  @relation(fields: [order_id], references: [id])
+
+  transaction_id String         @db.ObjectId
+  transaction    TransactionLog @relation(fields: [transaction_id], references: [id], name: "PaymentTransaction")
+}
+
+// ================= REFUNDS =================
+model Refund {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  refund_amount Float     // Changed from Decimal to Float
+  refund_reason String?
+  refunded_at   DateTime?
+
+  order_id String @db.ObjectId
+  order    Order  @relation(fields: [order_id], references: [id])
+
+  processed_by_admin_id String?        @db.ObjectId
+  admin                 Administrator? @relation(fields: [processed_by_admin_id], references: [id])
+}
+
+// ================= TRANSACTION LOGS =================
+model TransactionLog {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  action     String
+  details    String?
+  created_at DateTime @default(now())
+
+  user_id String? @db.ObjectId
+  user    User?   @relation(fields: [user_id], references: [id])
+
+  order_id String? @db.ObjectId
+  order    Order?  @relation(fields: [order_id], references: [id])
+
+  payments Payment[] @relation("PaymentTransaction")
+}
+
+// ================= USER ACTIVITY =================
+model UserActivity {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  activity_type    String
+  activity_details String?
+  created_at       DateTime @default(now())
+  ip_address       String?
+  user_agent       String?
+
+  user_id String @db.ObjectId
+  user    User   @relation(fields: [user_id], references: [id])
+}
+
+// ================= WISHLISTS =================
+model Wishlist {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user_id String @db.ObjectId
+  user    User   @relation(fields: [user_id], references: [id])
+
+  items WishlistItem[]
+}
+
+model WishlistItem {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  added_at DateTime @default(now())
+
+  wishlist_id String   @db.ObjectId
+  wishlist    Wishlist @relation(fields: [wishlist_id], references: [id])
+
+  product_id String  @db.ObjectId
+  product    Product @relation(fields: [product_id], references: [id])
+}
+
+// ================= PRODUCT VIEWS =================
+model ProductView {
+  id         String  @id @default(auto()) @map("_id") @db.ObjectId
+  session_id String
+  referrer   String?
+
+  user_id String @db.ObjectId
+  user    User   @relation(fields: [user_id], references: [id])
+
+  product_id String  @db.ObjectId
+  product    Product @relation(fields: [product_id], references: [id])
+}
